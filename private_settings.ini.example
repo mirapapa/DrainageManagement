@@ -1,0 +1,17 @@
+[private_info]
+build_flags =
+    ; WiFi設定
+    -D WIFI_SSID = \"your-wifi-ssid\"
+    -D WIFI_PASS = \"your-wifi-password\"
+    -D WIFI_HOST = \"profarm-esp32\"
+    -D WIFI_IP = {192, 168, 1, 100}
+    -D WIFI_GATEWAY = {192, 168, 1, 1}
+    -D WIFI_SUBNET = {255, 255, 255, 0}
+    -D WIFI_DNS = {8, 8, 8, 8}
+    ; Profarm設定
+    -D USERID = \"your-profarm-userid\"
+    -D PASSWORD = \"your-profarm-password\"
+    -D SELHOUSEID = \"your-house-id\"
+    ; Ambient設定
+    -D AMBIENT_CHANNEL_ID = 12345
+    -D AMBIENT_WRITE_KEY = \"your-ambient-write-key\"

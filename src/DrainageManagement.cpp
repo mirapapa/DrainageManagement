@@ -1,0 +1,51 @@
+#include "common.h"
+
+TaskHandle_t thp[3];
+SENDSSDATATOSS sendHDatatoSS;
+
+void setup()
+{
+  Serial.begin(115200);
+
+  // logServerのセットアップ
+  logServersetup();
+
+  logprintln("");
+  logprintln("***********************************");
+  logprintln("**   排液管理システム            **");
+  logprintln("**   (ver1.00)                   **");
+  logprintln("***********************************");
+#ifdef CONFIG_APP_ROLLBACK_ENABLE
+  logprintln("CONFIG_APP_ROLLBACK_ENABLE");
+#endif // CONFIG_APP_ROLLBACK_ENABLE
+  logprintln("");
+
+  // NTPクライアントのセットアップ
+  ntp_setup();
+
+  // wifiのセットアップ
+  wifisetup();
+
+  // 超音波センサのセットアップ
+  ultrasonicSensor_setup();
+
+  // タスク起動
+  xTaskCreatePinnedToCore(ultrasonicSensor_Task, "ULTRASONICSENSOR_TASK", 8192, NULL, 3, &thp[0], APP_CPU_NUM);
+  xTaskCreatePinnedToCore(spreadsheet_task, "SPREADSHEET_Task", 8192, NULL, 2, &thp[1], APP_CPU_NUM);
+  xTaskCreatePinnedToCore(logServer_task, "LOGSERVER_TASK", 8192, NULL, 1, &thp[2], APP_CPU_NUM);
+
+  // otaのセットアップ
+  ota_setup();
+
+  logprintln("<<Profarmデータ収集システム再起動>>", 1);
+}
+
+void loop()
+{
+  // wifi接続判定
+  wificheck();
+
+  ArduinoOTA.handle();
+
+  delay(1000);
+}
