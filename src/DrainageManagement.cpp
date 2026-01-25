@@ -13,7 +13,7 @@ void setup()
   logprintln("");
   logprintln("***********************************");
   logprintln("**   排液管理システム            **");
-  logprintln("**   (ver1.00)                   **");
+  logprintln("**   (ver1.10)                   **");
   logprintln("***********************************");
 #ifdef CONFIG_APP_ROLLBACK_ENABLE
   logprintln("CONFIG_APP_ROLLBACK_ENABLE");
@@ -29,6 +29,9 @@ void setup()
   // 超音波センサのセットアップ
   ultrasonicSensor_setup();
 
+  // スプレッドシート送信のセットアップ
+  spreadSheetsetup();
+
   // タスク起動
   xTaskCreatePinnedToCore(ultrasonicSensor_Task, "ULTRASONICSENSOR_TASK", 8192, NULL, 3, &thp[0], APP_CPU_NUM);
   xTaskCreatePinnedToCore(spreadsheet_task, "SPREADSHEET_Task", 8192, NULL, 2, &thp[1], APP_CPU_NUM);
@@ -37,7 +40,7 @@ void setup()
   // otaのセットアップ
   ota_setup();
 
-  logprintln("<<Profarmデータ収集システム再起動>>", 1);
+  logprintln("<<排液管理システム再起動>>", 1);
 }
 
 void loop()

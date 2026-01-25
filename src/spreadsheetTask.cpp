@@ -1,21 +1,40 @@
 #include "common.h"
 
+SemaphoreHandle_t xDataSemaphore;
+
+void spreadSheetsetup()
+{
+  // セマフォ作成
+  xDataSemaphore = xSemaphoreCreateBinary();
+  if (xDataSemaphore == NULL)
+  {
+    Serial.println("セマフォ取得失敗");
+  }
+  else
+  {
+    xSemaphoreGive(xDataSemaphore);
+  }
+}
+
 void spreadsheet_task(void *pvParameters)
 {
+  logprintln("spreadSheet_Task START!!");
+  vTaskDelay(pdMS_TO_TICKS(5000));
+
   // 送信フラグ初期化
-  takeSemaphore(xSemaphore);
+  takeSemaphore(xDataSemaphore);
   sendHDatatoSS.send_flg = 0;
-  giveSemaphore(xSemaphore);
+  giveSemaphore(xDataSemaphore);
 
   while (1)
   {
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     // セマフォで保護しながらフラグとデータをコピー
-    takeSemaphore(xSemaphore);
+    takeSemaphore(xDataSemaphore);
     bool shouldSend = sendHDatatoSS.send_flg;
     String dataCopy = sendHDatatoSS.data;
-    giveSemaphore(xSemaphore);
+    giveSemaphore(xDataSemaphore);
 
     if (shouldSend)
     {
@@ -23,10 +42,10 @@ void spreadsheet_task(void *pvParameters)
       sendSpreadsheet(dataCopy);
 
       // 送信完了後、フラグをクリア
-      takeSemaphore(xSemaphore);
+      takeSemaphore(xDataSemaphore);
       sendHDatatoSS.send_flg = 0;
       sendHDatatoSS.data.clear(); // メモリ解放
-      giveSemaphore(xSemaphore);
+      giveSemaphore(xDataSemaphore);
     }
 
     // デバッグ用：スタック残量確認

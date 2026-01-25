@@ -5,7 +5,7 @@
 #define MAX_QUESIZE 256
 WiFiServer logServer(4444); // ポート設定
 QueueHandle_t queue1;
-SemaphoreHandle_t xSemaphore;
+SemaphoreHandle_t xHistorySemaphore;
 
 typedef struct
 {
@@ -21,14 +21,14 @@ void logServersetup()
   queue1 = xQueueCreate(MAX_QUENUM, MAX_QUESIZE);
 
   // セマフォ作成
-  xSemaphore = xSemaphoreCreateBinary();
-  if (xSemaphore == NULL)
+  xHistorySemaphore = xSemaphoreCreateBinary();
+  if (xHistorySemaphore == NULL)
   {
     Serial.println("セマフォ取得失敗");
   }
   else
   {
-    xSemaphoreGive(xSemaphore);
+    xSemaphoreGive(xHistorySemaphore);
   }
 }
 
@@ -106,7 +106,7 @@ void logprintln(String log, bool historyFlg)
 
   if (historyFlg)
   {
-    takeSemaphore(xSemaphore);
+    takeSemaphore(xHistorySemaphore);
 
     struct tm timeinfo;
     String timeStr = "";
@@ -127,7 +127,7 @@ void logprintln(String log, bool historyFlg)
 
     historyData.data[historyData.latest_num] = timeStr + log;
 
-    giveSemaphore(xSemaphore);
+    giveSemaphore(xHistorySemaphore);
   }
 }
 
@@ -135,7 +135,7 @@ String getHistoryData()
 {
   String strbuf;
 
-  takeSemaphore(xSemaphore);
+  takeSemaphore(xHistorySemaphore);
   uint readnum = historyData.latest_num;
 
   while (1)
@@ -147,7 +147,7 @@ String getHistoryData()
     readnum = prevnum(readnum);
   }
 
-  giveSemaphore(xSemaphore);
+  giveSemaphore(xHistorySemaphore);
   return strbuf;
 }
 

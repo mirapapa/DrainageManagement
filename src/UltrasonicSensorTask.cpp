@@ -69,9 +69,9 @@ void ultrasonicSensor_Task(void *pvParameters)
     // --- 2段目: 状態表示と点滅アニメーション ---
     lcd.setCursor(0, 1);
 
-    takeSemaphore(xSemaphore);
+    takeSemaphore(xDataSemaphore);
     bool sending = sendHDatatoSS.send_flg;
-    giveSemaphore(xSemaphore);
+    giveSemaphore(xDataSemaphore);
 
     if (sending)
     {
@@ -95,11 +95,11 @@ void ultrasonicSensor_Task(void *pvParameters)
     // 60秒に1回、スプレッドシート送信用のデータを作成
     if (millis() - lastSendTime > 60000)
     {
-      takeSemaphore(xSemaphore);
+      takeSemaphore(xDataSemaphore);
       // 自宅側のGASが受け取れる形式 "?d4=数値" を作成
       sendHDatatoSS.data = "?d4=" + String(distance);
       sendHDatatoSS.send_flg = 1;
-      giveSemaphore(xSemaphore);
+      giveSemaphore(xDataSemaphore);
 
       lastSendTime = millis();
       logprintln("○SS送信キューに追加: d4=" + String(distance));

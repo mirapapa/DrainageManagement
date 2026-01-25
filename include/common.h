@@ -50,12 +50,14 @@ int measureDistance();
 void ultrasonicSensor_Task(void *pvParameters);
 
 // スプレッドシート関連
+void spreadSheetsetup();
 void spreadsheet_task(void *pvParameters);
 void sendSpreadsheet(const String &data);
 
 // --- 全ての外部変数の宣言 ---
 extern SENDSSDATATOSS sendHDatatoSS;
-extern SemaphoreHandle_t xSemaphore;
+extern SemaphoreHandle_t xHistorySemaphore; // 履歴データ(Web表示)用
+extern SemaphoreHandle_t xDataSemaphore;    // 送信データ(SS/Ambient)用
 extern bool firstTimeNtpFlg;
 
 #endif // COMMON_H
