@@ -25,6 +25,9 @@ byte wifiImg[8] = {
 const char loader[] = {'|', '/', '-', '\\'};
 int loaderIdx = 0;
 
+int distanceSamples[65]; // 1分間のデータを溜める配列
+int sampleCount = 0;     // 現在のデータ数
+
 void ultrasonicSensor_setup()
 {
   pinMode(TRIG_PIN, OUTPUT); // Sets the TRIG_PIN as an OUTPUT
@@ -36,23 +39,63 @@ void ultrasonicSensor_setup()
   lcd.createChar(0, wifiImg);
   lcd.setCursor(0, 0);
   lcd.print("SYSTEM STARTING");
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }
 
 void ultrasonicSensor_Task(void *pvParameters)
 {
   logprintln("ultrasonicSensor_Task START!!");
-  vTaskDelay(pdMS_TO_TICKS(5000));
+
+  // --- WiFi接続完了まで待機してIPを表示するセクション ---
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("WiFi Connecting");
+
+  int retryCount = 0;
+  while (WiFi.status() != WL_CONNECTED && retryCount < 20)
+  { // 最大10秒待機
+    vTaskDelay(pdMS_TO_TICKS(500));
+    lcd.setCursor(15, 0);
+    lcd.print(loader[loaderIdx]);
+    loaderIdx = (loaderIdx + 1) % 4;
+    retryCount++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi CONNECTED!");
+    lcd.setCursor(0, 1);
+    lcd.print(WiFi.localIP());       // IPアドレスを表示
+    vTaskDelay(pdMS_TO_TICKS(5000)); // 5秒間表示をキープ
+  }
+  else
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi TIMEOUT");
+    vTaskDelay(pdMS_TO_TICKS(2000));
+  }
+  lcd.clear();
 
   while (true)
   {
-    // 距離計測
+    // 1. 距離計測
     distance = measureDistance();
+
+    // 2. 配列に保存（配列が溢れないようにチェック）
+    if (sampleCount < 60)
+    {
+      distanceSamples[sampleCount] = distance;
+      sampleCount++;
+    }
 
     // --- 1段目: 距離表示 (単位を右端に固定) ---
     lcd.setCursor(0, 0);
     char line1[17];
     // "DIST:    120 cm" のように右詰めで整形 (全15文字 + WiFiアイコン分)
-    sprintf(line1, "DIST: %5d cm", distance);
+    sprintf(line1, "DIST: %5d cm ", distance);
     lcd.print(line1);
 
     // 右上(15列目)にWiFiアイコンを表示（接続時のみ）
@@ -83,26 +126,58 @@ void ultrasonicSensor_Task(void *pvParameters)
     }
     else
     {
-      // 待機中は次回送信までのカウントダウンを表示
+      // 待機中：次回送信までの秒数と、前回の結果を表示
+      takeSemaphore(xDataSemaphore);
+      int lastCode = sendHDatatoSS.last_http_code;
+      giveSemaphore(xDataSemaphore);
+
       int next = 60 - (millis() - lastSendTime) / 1000;
       if (next < 0)
         next = 0;
+
       char line2[17];
-      sprintf(line2, "WAITING...  %2ds", next);
+      if (lastCode == 200)
+      {
+        // 成功時は「OK」と秒数を表示
+        sprintf(line2, "OK!      WAIT%2ds", next);
+      }
+      else if (lastCode == 0)
+      {
+        // 初回など、まだ送信していない時
+        sprintf(line2, "READY    WAIT%2ds", next);
+      }
+      else
+      {
+        // 失敗時はエラーコードを表示
+        sprintf(line2, "ERR:%d  WAIT%2ds", lastCode, next);
+      }
       lcd.print(line2);
     }
 
-    // 60秒に1回、スプレッドシート送信用のデータを作成
+    // --- 60秒に1回、中央値を計算して送信 ---
     if (millis() - lastSendTime > 60000)
     {
+      int medianDistance = 0;
+      if (sampleCount > 0)
+      {
+        // 配列を小さい順に並べ替える
+        std::sort(distanceSamples, distanceSamples + sampleCount);
+
+        // 真ん中の値（中央値）を取り出す
+        medianDistance = distanceSamples[sampleCount / 2];
+      }
+
       takeSemaphore(xDataSemaphore);
-      // 自宅側のGASが受け取れる形式 "?d4=数値" を作成
-      sendHDatatoSS.data = "?d4=" + String(distance);
+      // 中央値を送信データにセット
+      sendHDatatoSS.data = "?d4=" + String(medianDistance);
       sendHDatatoSS.send_flg = 1;
       giveSemaphore(xDataSemaphore);
 
+      logprintln("○SS送信(中央値): d4=" + String(medianDistance) + " (" + String(sampleCount) + " samples)");
+
+      // 変数とカウントをリセット
       lastSendTime = millis();
-      logprintln("○SS送信キューに追加: d4=" + String(distance));
+      sampleCount = 0;
     }
 
     vTaskDelay(pdMS_TO_TICKS(1000));

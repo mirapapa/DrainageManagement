@@ -16,6 +16,7 @@ typedef struct
 {
     bool send_flg;
     String data;
+    int last_http_code;
 } SENDSSDATATOSS;
 
 // --- 全ての自作関数のプロトタイプ宣言 ---

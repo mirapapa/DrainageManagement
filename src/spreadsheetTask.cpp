@@ -73,6 +73,10 @@ void sendSpreadsheet(const String &data)
   int httpCode = http.GET();
   String log;
 
+  takeSemaphore(xDataSemaphore);
+  sendHDatatoSS.last_http_code = httpCode;
+  giveSemaphore(xDataSemaphore);
+
   if (httpCode > 0)
   {
     log = "●SpreadSheet 受信 [HTTP] GET... code: " + String(httpCode);
