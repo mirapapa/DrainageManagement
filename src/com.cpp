@@ -32,12 +32,7 @@ void takeSemaphore(SemaphoreHandle_t xSemaphore)
     Serial.println("▼▼▼セマフォ取得タイムアウト - デッドロック検出▼▼▼");
     Serial.println("タスク名: " + String(pcTaskGetName(NULL)));
     Serial.println("Free heap: " + String(ESP.getFreeHeap()));
-
-    // 全タスクの状態をダンプ
-    char taskListBuffer[512];
-    vTaskList(taskListBuffer);
-    Serial.println("=== Task List ===");
-    Serial.println(taskListBuffer);
+    Serial.println("Largest free block: " + String(ESP.getMaxAllocHeap()));
 
     // 緊急対応：リスタート
     Serial.println("システムを再起動します...");
