@@ -13,7 +13,7 @@ void setup()
   logprintln("");
   logprintln("***********************************");
   logprintln("**   排液管理システム            **");
-  logprintln("**   (ver1.10)                   **");
+  logprintln("**   (ver1.11)                   **");
   logprintln("***********************************");
 #ifdef CONFIG_APP_ROLLBACK_ENABLE
   logprintln("CONFIG_APP_ROLLBACK_ENABLE");

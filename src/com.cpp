@@ -25,18 +25,23 @@ void takeSemaphore(SemaphoreHandle_t xSemaphore)
     return;
   }
 
-  // portMAX_DELAYで無限待機（デッドロック回避のため）
+  // 5秒待機してセマフォ取得を試みる
   if (xSemaphoreTake(xSemaphore, pdMS_TO_TICKS(5000)) != pdTRUE)
   {
     // 5秒待ってもセマフォが取得できない場合
     Serial.println("▼▼▼セマフォ取得タイムアウト - デッドロック検出▼▼▼");
     Serial.println("タスク名: " + String(pcTaskGetName(NULL)));
-
-    // デバッグ情報を出力
     Serial.println("Free heap: " + String(ESP.getFreeHeap()));
 
+    // 全タスクの状態をダンプ
+    char taskListBuffer[512];
+    vTaskList(taskListBuffer);
+    Serial.println("=== Task List ===");
+    Serial.println(taskListBuffer);
+
     // 緊急対応：リスタート
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    Serial.println("システムを再起動します...");
+    vTaskDelay(pdMS_TO_TICKS(2000));
     ESP.restart();
   }
 }

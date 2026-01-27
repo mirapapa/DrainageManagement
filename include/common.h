@@ -36,6 +36,7 @@ int wifisetup();
 void wificheck();
 void mdnssetup();
 void timeavailable(struct timeval *t);
+bool isWiFiReallyConnected(); // 新規追加
 
 // OTA関連
 void ota_setup();

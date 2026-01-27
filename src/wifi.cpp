@@ -10,6 +10,8 @@ const IPAddress dns1 WIFI_DNS;
 uint16_t wifistatus = 0;
 unsigned long previousMillis = 0;
 unsigned long interval = 30000;
+unsigned long lastConnectedTime = 0;
+const unsigned long MAX_DISCONNECTED_TIME = 300000; // 5分間切断が続いたら再起動
 
 int wifisetup()
 {
@@ -37,6 +39,9 @@ int wifisetup()
   {
     logprintln("WiFi Connected!");
     logprintln("IP address: " + WiFi.localIP().toString());
+    logprintln("Gateway: " + WiFi.gatewayIP().toString());
+    logprintln("RSSI: " + String(WiFi.RSSI()) + " dBm");
+    lastConnectedTime = millis();
     return 1;
   }
   else
@@ -56,6 +61,32 @@ void mdnssetup()
   {
     logprintln("MDNS responder started: " + String(host) + ".local");
   }
+}
+
+bool isWiFiReallyConnected()
+{
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    return false;
+  }
+
+  // ゲートウェイIPが有効かチェック
+  IPAddress gw = WiFi.gatewayIP();
+  if (gw[0] == 0)
+  {
+    logprintln("⚠ WiFi接続中だがゲートウェイIPが無効");
+    return false;
+  }
+
+  // RSSI値をチェック（-90dBm以下は実質使用不可）
+  int rssi = WiFi.RSSI();
+  if (rssi < -90)
+  {
+    logprintln("⚠ WiFi電波強度が極端に弱い: " + String(rssi) + " dBm");
+    return false;
+  }
+
+  return true;
 }
 
 void wificheck()
@@ -83,6 +114,7 @@ void wificheck()
       logprintln("SSID: " + String(ssid));
       logprintln("AP IP address: " + WiFi.localIP().toString());
       logprintln("RSSI: " + String(WiFi.RSSI()) + " dBm");
+      lastConnectedTime = millis();
       mdnssetup();
       break;
     case WL_CONNECT_FAILED:
@@ -100,11 +132,29 @@ void wificheck()
   }
 
   unsigned long currentMillis = millis();
+
+  // 接続状態の場合、最終接続時刻を更新
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    lastConnectedTime = currentMillis;
+  }
+  else
+  {
+    // 長時間切断が続いている場合は再起動
+    if (currentMillis - lastConnectedTime > MAX_DISCONNECTED_TIME)
+    {
+      logprintln("⚠ WiFi切断が5分以上継続 - 再起動します");
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      ESP.restart();
+    }
+  }
+
   // WiFi切断時の自動再接続（30秒間隔）
   if ((WiFi.status() != WL_CONNECTED) && (currentMillis - previousMillis >= interval))
   {
     logprintln("Reconnecting to WiFi...");
     WiFi.disconnect();
+    vTaskDelay(pdMS_TO_TICKS(1000));
     WiFi.reconnect();
     previousMillis = currentMillis;
   }
