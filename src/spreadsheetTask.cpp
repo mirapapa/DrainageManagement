@@ -21,6 +21,9 @@ void spreadsheet_task(void *pvParameters)
   logprintln("spreadSheet_Task START!!");
   vTaskDelay(pdMS_TO_TICKS(5000));
 
+  // Task WDTに登録
+  watchdog_subscribe_task("SPREADSHEET_TASK");
+
   // 送信フラグ初期化
   takeSemaphore(xDataSemaphore);
   sendHDatatoSS.send_flg = 0;
@@ -32,6 +35,9 @@ void spreadsheet_task(void *pvParameters)
 
   while (1)
   {
+    // WDTリセット（ループの最初で実行）
+    watchdog_reset();
+
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     // セマフォで保護しながらフラグとデータをコピー

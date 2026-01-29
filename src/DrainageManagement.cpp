@@ -13,12 +13,15 @@ void setup()
   logprintln("");
   logprintln("***********************************");
   logprintln("**   排液管理システム            **");
-  logprintln("**   (ver1.11)                   **");
+  logprintln("**   (ver1.12)                   **");
   logprintln("***********************************");
 #ifdef CONFIG_APP_ROLLBACK_ENABLE
   logprintln("CONFIG_APP_ROLLBACK_ENABLE");
 #endif // CONFIG_APP_ROLLBACK_ENABLE
   logprintln("");
+
+  // Watchdog Timerのセットアップ
+  watchdog_setup();
 
   // NTPクライアントのセットアップ
   ntp_setup();

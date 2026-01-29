@@ -43,6 +43,12 @@ void ota_setup();
 void verifyFirmware();
 void ota_handle(); // 新規追加
 
+// Watchdog関連
+void watchdog_setup();
+void watchdog_subscribe_task(const char *taskName);
+void watchdog_reset();
+void watchdog_unsubscribe_task(const char *taskName);
+
 // セマフォ関連
 void takeSemaphore(SemaphoreHandle_t xSemaphore);
 void giveSemaphore(SemaphoreHandle_t xSemaphore);

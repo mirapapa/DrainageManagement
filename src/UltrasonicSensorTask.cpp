@@ -46,6 +46,9 @@ void ultrasonicSensor_Task(void *pvParameters)
 {
   logprintln("ultrasonicSensor_Task START!!");
 
+  // Task WDTに登録
+  watchdog_subscribe_task("ULTRASONICSENSOR_TASK");
+
   // --- WiFi接続完了まで待機してIPを表示するセクション ---
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -59,6 +62,9 @@ void ultrasonicSensor_Task(void *pvParameters)
     lcd.print(loader[loaderIdx]);
     loaderIdx = (loaderIdx + 1) % 4;
     retryCount++;
+
+    // WDTリセット
+    watchdog_reset();
   }
 
   if (WiFi.status() == WL_CONNECTED)
@@ -81,6 +87,9 @@ void ultrasonicSensor_Task(void *pvParameters)
 
   while (true)
   {
+    // WDTリセット（ループの最初で実行）
+    watchdog_reset();
+
     // 1. 距離計測
     distance = measureDistance();
 

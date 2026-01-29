@@ -37,6 +37,9 @@ void logServer_task(void *pvParameters)
   logprintln("logServer_task START!!");
   logServer.begin();
 
+  // Task WDTに登録
+  watchdog_subscribe_task("LOGSERVER_TASK");
+
   historyData.oldest_num = 0;
   historyData.latest_num = 0;
 
@@ -44,6 +47,9 @@ void logServer_task(void *pvParameters)
 
   while (1)
   {
+    // WDTリセット（ループの最初で実行）
+    watchdog_reset();
+
     char buf[MAX_QUESIZE];
 
     WiFiClient logClient = logServer.available();
@@ -55,6 +61,10 @@ void logServer_task(void *pvParameters)
       {
         while (xQueueReceive(queue1, buf, 0))
         {
+
+          // WDTリセット（クライアント接続中）
+          watchdog_reset();
+
           logClient.println(buf);
         }
         vTaskDelay(pdMS_TO_TICKS(100));
