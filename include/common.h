@@ -41,6 +41,7 @@ bool isWiFiReallyConnected(); // 新規追加
 // OTA関連
 void ota_setup();
 void verifyFirmware();
+void ota_handle(); // 新規追加
 
 // セマフォ関連
 void takeSemaphore(SemaphoreHandle_t xSemaphore);

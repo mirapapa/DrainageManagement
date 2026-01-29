@@ -48,7 +48,8 @@ void loop()
   // wifi接続判定
   wificheck();
 
-  ArduinoOTA.handle();
+  // OTA処理（ArduinoOTA + WEB OTA）
+  ota_handle();
 
   delay(1000);
 }

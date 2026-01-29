@@ -1,6 +1,325 @@
 #include "common.h"
+#include <WebServer.h>
+#include <Update.h>
 
 unsigned int progress_percent = 0;
+WebServer webOtaServer(8080);
+
+// OTAアップロード用のHTMLページ
+const char *otaUploadHtml = R"rawliteral(
+<!DOCTYPE html>
+<html lang='ja'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>排液管理システム - OTA更新</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .version {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .info-box {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        .info-box p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        input[type='file'] {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            background: #f9f9f9;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        input[type='file']:hover {
+            background: #f0f4ff;
+            border-color: #764ba2;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #f0f4ff;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .message {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <h1>🔄 OTA ファームウェア更新</h1>
+        <div class='version'>排液管理システム ver1.11</div>
+        
+        <div class='info-box'>
+            <p>📱 <strong>IP:</strong> <span id='ipAddr'>読み込み中...</span></p>
+            <p>🆔 <strong>ホスト:</strong> <span id='hostname'>読み込み中...</span></p>
+            <p>📶 <strong>RSSI:</strong> <span id='rssi'>読み込み中...</span> dBm</p>
+            <p>💾 <strong>空きメモリ:</strong> <span id='freeHeap'>読み込み中...</span> bytes</p>
+        </div>
+        
+        <form id='uploadForm' enctype='multipart/form-data'>
+            <input type='file' name='update' id='fileInput' accept='.bin' required>
+            <button type='submit' id='uploadBtn'>📤 アップロード開始</button>
+        </form>
+        
+        <div class='progress-container' id='progressContainer'>
+            <div class='progress-bar'>
+                <div class='progress-fill' id='progressFill'>0%</div>
+            </div>
+            <p style='text-align: center; color: #666;' id='progressText'>アップロード中...</p>
+        </div>
+        
+        <div class='message' id='message'></div>
+    </div>
+
+    <script>
+        // システム情報を取得
+        fetch('/info')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('ipAddr').textContent = data.ip;
+                document.getElementById('hostname').textContent = data.hostname;
+                document.getElementById('rssi').textContent = data.rssi;
+                document.getElementById('freeHeap').textContent = data.freeHeap.toLocaleString();
+            })
+            .catch(e => console.error('Info fetch failed:', e));
+
+        document.getElementById('uploadForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showMessage('error', 'ファイルを選択してください');
+                return;
+            }
+            
+            const uploadBtn = document.getElementById('uploadBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            uploadBtn.disabled = true;
+            progressContainer.style.display = 'block';
+            
+            const formData = new FormData();
+            formData.append('update', file);
+            
+            try {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progressFill.style.width = percent + '%';
+                        progressFill.textContent = percent + '%';
+                        progressText.textContent = 'アップロード中... ' + percent + '%';
+                    }
+                };
+                
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        progressFill.style.width = '100%';
+                        progressFill.textContent = '100%';
+                        progressText.textContent = '完了！';
+                        showMessage('success', '✅ アップロード成功！デバイスが再起動します...');
+                        
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 5000);
+                    } else {
+                        showMessage('error', '❌ アップロード失敗: ' + xhr.responseText);
+                        uploadBtn.disabled = false;
+                    }
+                };
+                
+                xhr.onerror = function() {
+                    showMessage('error', '❌ 通信エラーが発生しました');
+                    uploadBtn.disabled = false;
+                };
+                
+                xhr.open('POST', '/update', true);
+                xhr.send(formData);
+                
+            } catch (error) {
+                showMessage('error', '❌ エラー: ' + error.message);
+                uploadBtn.disabled = false;
+            }
+        };
+        
+        function showMessage(type, text) {
+            const message = document.getElementById('message');
+            message.className = 'message ' + type;
+            message.textContent = text;
+            message.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
+)rawliteral";
+
+void webOtaHandleRoot()
+{
+  webOtaServer.send(200, "text/html", otaUploadHtml);
+}
+
+void webOtaHandleInfo()
+{
+  String json = "{";
+  json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+  json += "\"hostname\":\"" + String(WiFi.getHostname()) + "\",";
+  json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
+  json += "\"freeHeap\":" + String(ESP.getFreeHeap());
+  json += "}";
+  webOtaServer.send(200, "application/json", json);
+}
+
+void webOtaHandleUpdate()
+{
+  HTTPUpload &upload = webOtaServer.upload();
+
+  if (upload.status == UPLOAD_FILE_START)
+  {
+    logprintln("[WEB OTA] Update Start: " + String(upload.filename));
+
+    // OTA更新開始
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN))
+    {
+      logprintln("[WEB OTA] Update Begin Failed");
+      Update.printError(Serial);
+    }
+  }
+  else if (upload.status == UPLOAD_FILE_WRITE)
+  {
+    // データを書き込み
+    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+    {
+      logprintln("[WEB OTA] Update Write Failed");
+      Update.printError(Serial);
+    }
+    else
+    {
+      // 進捗表示（5%刻み）
+      unsigned int percent = (Update.progress() * 100) / Update.size();
+      if ((progress_percent != percent) && (percent % 5 == 0))
+      {
+        logprintln("[WEB OTA] Progress: " + String(percent) + "%");
+        progress_percent = percent;
+      }
+    }
+  }
+  else if (upload.status == UPLOAD_FILE_END)
+  {
+    if (Update.end(true))
+    {
+      logprintln("[WEB OTA] Update Success! Total: " + String(upload.totalSize) + " bytes");
+      logprintln("[WEB OTA] Rebooting...");
+    }
+    else
+    {
+      logprintln("[WEB OTA] Update Failed!");
+      Update.printError(Serial);
+    }
+  }
+}
+
+void webOtaHandleUpdatePost()
+{
+  webOtaServer.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+
+  // 再起動
+  delay(1000);
+  ESP.restart();
+}
 
 void verifyFirmware()
 {
@@ -37,45 +356,51 @@ void verifyFirmware()
 
 void ota_setup()
 {
-  // Port defaults to 3232
-  // ArduinoOTA.setPort(3232);
-  // Hostname defaults to esp3232-[MAC]
-  // ArduinoOTA.setHostname("myesp32");
-  // No authentication by default
+  // ArduinoOTA (従来のOTA)の設定
   ArduinoOTA.setPassword("drainage");
-  // Password can be set with it's md5 value as well
-  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
-  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
   ArduinoOTA
       .onStart([]()
                {
     String type;
     if (ArduinoOTA.getCommand() == U_FLASH)
       type = "sketch";
-    else // U_SPIFFS
+    else
       type = "filesystem";
-    // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-    logprintln("Start updating " + type); })
+    logprintln("[Arduino OTA] Start updating " + type); })
       .onEnd([]()
              {
-    logprintln("<< Program Update End!! Reboot!! >>");
+    logprintln("[Arduino OTA] Update End!! Reboot!!");
     delay(1000); })
       .onProgress([](unsigned int progress, unsigned int total)
                   {
     unsigned int nowPercent = (progress / (total / 100));
     if ((progress_percent != nowPercent) && (nowPercent%5 == 0)) {
-      logprintln(String("Program Update...Progress: ") + String(nowPercent) + String("%"));
+      logprintln("[Arduino OTA] Progress: " + String(nowPercent) + "%");
       progress_percent = nowPercent;
     } })
       .onError([](ota_error_t error)
                {
-    logprintln(String("Error[%u]: ") + String(error));
+    logprintln("[Arduino OTA] Error: " + String(error));
     if (error == OTA_AUTH_ERROR) logprintln("Auth Failed");
     else if (error == OTA_BEGIN_ERROR) logprintln("Begin Failed");
     else if (error == OTA_CONNECT_ERROR) logprintln("Connect Failed");
     else if (error == OTA_RECEIVE_ERROR) logprintln("Receive Failed");
     else if (error == OTA_END_ERROR) logprintln("End Failed"); });
   ArduinoOTA.begin();
-  logprintln("OTA_Ready");
-  //  logprintln(String("IP address: ") + WiFi.localIP().toString());
+  logprintln("[Arduino OTA] Ready (Port: 3232)");
+
+  // WEB OTAの設定
+  webOtaServer.on("/", HTTP_GET, webOtaHandleRoot);
+  webOtaServer.on("/info", HTTP_GET, webOtaHandleInfo);
+  webOtaServer.on("/update", HTTP_POST, webOtaHandleUpdatePost, webOtaHandleUpdate);
+  webOtaServer.begin();
+
+  logprintln("[WEB OTA] Ready (Port: 8080)");
+  logprintln("[WEB OTA] Access: http://" + WiFi.localIP().toString() + ":8080");
+}
+
+void ota_handle()
+{
+  ArduinoOTA.handle();
+  webOtaServer.handleClient();
 }
