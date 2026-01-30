@@ -19,6 +19,23 @@ typedef struct
     int last_http_code;
 } SENDSSDATATOSS;
 
+// 再起動記録の構造体
+typedef struct
+{
+    time_t timestamp;     // 再起動時刻
+    uint8_t rebootReason; // 再起動理由（esp_reset_reason_t）
+    char message[64];     // メッセージ
+} RebootRecord;
+
+// リングバッファ形式の再起動ログ
+typedef struct
+{
+    RebootRecord records[10];  // 最大10件
+    uint8_t writeIndex;        // 次に書き込む位置
+    uint8_t recordCount;       // 現在の記録数
+    uint32_t totalRebootCount; // 総再起動回数
+} RebootLog;
+
 // --- 全ての自作関数のプロトタイプ宣言 ---
 
 // ログ関連
@@ -49,6 +66,17 @@ void watchdog_subscribe_task(const char *taskName);
 void watchdog_reset();
 void watchdog_unsubscribe_task(const char *taskName);
 
+// 再起動ログ関連
+void rebootLog_setup();
+void loadRebootLog();
+void saveRebootLog();
+void addRebootRecord(esp_reset_reason_t reason, const char *message);
+String getRebootLogJson();
+String getRebootLogHtml();
+void clearRebootLog();
+String getRebootReasonString(esp_reset_reason_t reason);
+esp_reset_reason_t getCurrentRebootReason();
+
 // セマフォ関連
 void takeSemaphore(SemaphoreHandle_t xSemaphore);
 void giveSemaphore(SemaphoreHandle_t xSemaphore);
@@ -68,5 +96,6 @@ extern SENDSSDATATOSS sendHDatatoSS;
 extern SemaphoreHandle_t xHistorySemaphore; // 履歴データ(Web表示)用
 extern SemaphoreHandle_t xDataSemaphore;    // 送信データ(SS/Ambient)用
 extern bool firstTimeNtpFlg;
+extern RebootLog rebootLog; // 再起動ログ
 
 #endif // COMMON_H

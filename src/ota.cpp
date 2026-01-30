@@ -145,6 +145,21 @@ const char *otaUploadHtml = R"rawliteral(
             <p>💾 <strong>空きメモリ:</strong> <span id='freeHeap'>読み込み中...</span> bytes</p>
         </div>
         
+        <div class='info-box' style='border-left-color: #ff6b6b;'>
+            <p>🔄 <strong>総再起動回数:</strong> <span id='totalReboots'>-</span> 回</p>
+            <p>⏱️ <strong>稼働時間:</strong> <span id='uptime'>-</span></p>
+            <p>📝 <strong>最終再起動:</strong> <span id='lastReboot'>-</span></p>
+        </div>
+        
+        <details style='margin-bottom: 20px;'>
+            <summary style='cursor: pointer; padding: 10px; background: #f0f4ff; border-radius: 8px; font-weight: bold;'>
+                📜 再起動履歴を表示
+            </summary>
+            <div id='rebootHistory' style='margin-top: 10px; max-height: 200px; overflow-y: auto;'>
+                読み込み中...
+            </div>
+        </details>
+        
         <form id='uploadForm' enctype='multipart/form-data'>
             <input type='file' name='update' id='fileInput' accept='.bin' required>
             <button type='submit' id='uploadBtn'>📤 アップロード開始</button>
@@ -169,8 +184,82 @@ const char *otaUploadHtml = R"rawliteral(
                 document.getElementById('hostname').textContent = data.hostname;
                 document.getElementById('rssi').textContent = data.rssi;
                 document.getElementById('freeHeap').textContent = data.freeHeap.toLocaleString();
+                
+                // 再起動ログ情報を表示
+                if (data.rebootLog) {
+                    const log = data.rebootLog;
+                    
+                    // 総再起動回数
+                    document.getElementById('totalReboots').textContent = log.totalReboots;
+                    
+                    // 稼働時間
+                    const uptime = formatUptime(log.uptime);
+                    document.getElementById('uptime').textContent = uptime;
+                    
+                    // 最終再起動
+                    if (log.records && log.records.length > 0) {
+                        const latest = log.records[0];
+                        document.getElementById('lastReboot').textContent = 
+                            latest.timeStr + ' (' + latest.reason + ')';
+                    } else {
+                        document.getElementById('lastReboot').textContent = 'データなし';
+                    }
+                    
+                    // 再起動履歴テーブルを作成
+                    displayRebootHistory(log.records);
+                }
             })
             .catch(e => console.error('Info fetch failed:', e));
+        
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            
+            if (days > 0) {
+                return days + '日 ' + hours + '時間 ' + minutes + '分';
+            } else if (hours > 0) {
+                return hours + '時間 ' + minutes + '分';
+            } else {
+                return minutes + '分';
+            }
+        }
+        
+        function displayRebootHistory(records) {
+            const historyDiv = document.getElementById('rebootHistory');
+            
+            if (!records || records.length === 0) {
+                historyDiv.innerHTML = '<p style="color: #999;">履歴データがありません</p>';
+                return;
+            }
+            
+            let html = '<table style="width: 100%; border-collapse: collapse; font-size: 14px;">';
+            html += '<thead><tr style="background: #667eea; color: white;">';
+            html += '<th style="padding: 8px; text-align: left;">日時</th>';
+            html += '<th style="padding: 8px; text-align: left;">理由</th>';
+            html += '<th style="padding: 8px; text-align: left;">メッセージ</th>';
+            html += '</tr></thead><tbody>';
+            
+            records.forEach((record, index) => {
+                const bgColor = index % 2 === 0 ? '#f9f9f9' : 'white';
+                html += '<tr style="background: ' + bgColor + ';">';
+                html += '<td style="padding: 8px; border-bottom: 1px solid #ddd;">' + record.timeStr + '</td>';
+                html += '<td style="padding: 8px; border-bottom: 1px solid #ddd;">' + getReasonIcon(record.reason) + ' ' + record.reason + '</td>';
+                html += '<td style="padding: 8px; border-bottom: 1px solid #ddd;">' + record.message + '</td>';
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            historyDiv.innerHTML = html;
+        }
+        
+        function getReasonIcon(reason) {
+            if (reason.includes('WDT')) return '⚠️';
+            if (reason.includes('Power')) return '🔌';
+            if (reason.includes('Software')) return '🔄';
+            if (reason.includes('Panic')) return '❌';
+            return '❓';
+        }
 
         document.getElementById('uploadForm').onsubmit = async function(e) {
             e.preventDefault();
@@ -249,158 +338,162 @@ const char *otaUploadHtml = R"rawliteral(
 
 void webOtaHandleRoot()
 {
-  webOtaServer.send(200, "text/html", otaUploadHtml);
+    webOtaServer.send(200, "text/html", otaUploadHtml);
 }
 
 void webOtaHandleInfo()
 {
-  String json = "{";
-  json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
-  json += "\"hostname\":\"" + String(WiFi.getHostname()) + "\",";
-  json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
-  json += "\"freeHeap\":" + String(ESP.getFreeHeap());
-  json += "}";
-  webOtaServer.send(200, "application/json", json);
+    String json = "{";
+    json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+    json += "\"hostname\":\"" + String(WiFi.getHostname()) + "\",";
+    json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
+    json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
+
+    // 再起動ログ情報を追加
+    json += "\"rebootLog\":" + getRebootLogJson();
+
+    json += "}";
+    webOtaServer.send(200, "application/json", json);
 }
 
 void webOtaHandleUpdate()
 {
-  HTTPUpload &upload = webOtaServer.upload();
+    HTTPUpload &upload = webOtaServer.upload();
 
-  if (upload.status == UPLOAD_FILE_START)
-  {
-    logprintln("[WEB OTA] Update Start: " + String(upload.filename));
+    if (upload.status == UPLOAD_FILE_START)
+    {
+        logprintln("[WEB OTA] Update Start: " + String(upload.filename));
 
-    // OTA更新開始
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN))
-    {
-      logprintln("[WEB OTA] Update Begin Failed");
-      Update.printError(Serial);
+        // OTA更新開始
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN))
+        {
+            logprintln("[WEB OTA] Update Begin Failed");
+            Update.printError(Serial);
+        }
     }
-  }
-  else if (upload.status == UPLOAD_FILE_WRITE)
-  {
-    // データを書き込み
-    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+    else if (upload.status == UPLOAD_FILE_WRITE)
     {
-      logprintln("[WEB OTA] Update Write Failed");
-      Update.printError(Serial);
+        // データを書き込み
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+        {
+            logprintln("[WEB OTA] Update Write Failed");
+            Update.printError(Serial);
+        }
+        else
+        {
+            // 進捗表示（5%刻み）
+            unsigned int percent = (Update.progress() * 100) / Update.size();
+            if ((progress_percent != percent) && (percent % 5 == 0))
+            {
+                logprintln("[WEB OTA] Progress: " + String(percent) + "%");
+                progress_percent = percent;
+            }
+        }
     }
-    else
+    else if (upload.status == UPLOAD_FILE_END)
     {
-      // 進捗表示（5%刻み）
-      unsigned int percent = (Update.progress() * 100) / Update.size();
-      if ((progress_percent != percent) && (percent % 5 == 0))
-      {
-        logprintln("[WEB OTA] Progress: " + String(percent) + "%");
-        progress_percent = percent;
-      }
+        if (Update.end(true))
+        {
+            logprintln("[WEB OTA] Update Success! Total: " + String(upload.totalSize) + " bytes");
+            logprintln("[WEB OTA] Rebooting...");
+        }
+        else
+        {
+            logprintln("[WEB OTA] Update Failed!");
+            Update.printError(Serial);
+        }
     }
-  }
-  else if (upload.status == UPLOAD_FILE_END)
-  {
-    if (Update.end(true))
-    {
-      logprintln("[WEB OTA] Update Success! Total: " + String(upload.totalSize) + " bytes");
-      logprintln("[WEB OTA] Rebooting...");
-    }
-    else
-    {
-      logprintln("[WEB OTA] Update Failed!");
-      Update.printError(Serial);
-    }
-  }
 }
 
 void webOtaHandleUpdatePost()
 {
-  webOtaServer.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    webOtaServer.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
 
-  // 再起動
-  delay(1000);
-  ESP.restart();
+    // 再起動
+    delay(1000);
+    ESP.restart();
 }
 
 void verifyFirmware()
 {
-  logprintln("[SYSTEM] - Checking firmware...");
-  const esp_partition_t *running = esp_ota_get_running_partition();
-  esp_ota_img_states_t ota_state;
-  if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK)
-  {
-    const char *otaState = ota_state == ESP_OTA_IMG_NEW              ? "ESP_OTA_IMG_NEW"
-                           : ota_state == ESP_OTA_IMG_PENDING_VERIFY ? "ESP_OTA_IMG_PENDING_VERIFY"
-                           : ota_state == ESP_OTA_IMG_VALID          ? "ESP_OTA_IMG_VALID"
-                           : ota_state == ESP_OTA_IMG_INVALID        ? "ESP_OTA_IMG_INVALID"
-                           : ota_state == ESP_OTA_IMG_ABORTED        ? "ESP_OTA_IMG_ABORTED"
-                                                                     : "ESP_OTA_IMG_UNDEFINED";
-    logprintln("[System] - Ota state: " + String(otaState));
-
-    if (ota_state == ESP_OTA_IMG_PENDING_VERIFY)
+    logprintln("[SYSTEM] - Checking firmware...");
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    esp_ota_img_states_t ota_state;
+    if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK)
     {
-      if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK)
-      {
-        logprintln("[System] - App is valid, rollback cancelled successfully");
-      }
-      else
-      {
-        logprintln("[System] - Failed to cancel rollback");
-      }
+        const char *otaState = ota_state == ESP_OTA_IMG_NEW              ? "ESP_OTA_IMG_NEW"
+                               : ota_state == ESP_OTA_IMG_PENDING_VERIFY ? "ESP_OTA_IMG_PENDING_VERIFY"
+                               : ota_state == ESP_OTA_IMG_VALID          ? "ESP_OTA_IMG_VALID"
+                               : ota_state == ESP_OTA_IMG_INVALID        ? "ESP_OTA_IMG_INVALID"
+                               : ota_state == ESP_OTA_IMG_ABORTED        ? "ESP_OTA_IMG_ABORTED"
+                                                                         : "ESP_OTA_IMG_UNDEFINED";
+        logprintln("[System] - Ota state: " + String(otaState));
+
+        if (ota_state == ESP_OTA_IMG_PENDING_VERIFY)
+        {
+            if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK)
+            {
+                logprintln("[System] - App is valid, rollback cancelled successfully");
+            }
+            else
+            {
+                logprintln("[System] - Failed to cancel rollback");
+            }
+        }
     }
-  }
-  else
-  {
-    logprintln("[System] - OTA partition has no record in OTA data");
-  }
+    else
+    {
+        logprintln("[System] - OTA partition has no record in OTA data");
+    }
 }
 
 void ota_setup()
 {
-  // ArduinoOTA (従来のOTA)の設定
-  ArduinoOTA.setPassword("drainage");
-  ArduinoOTA
-      .onStart([]()
-               {
+    // ArduinoOTA (従来のOTA)の設定
+    ArduinoOTA.setPassword("drainage");
+    ArduinoOTA
+        .onStart([]()
+                 {
     String type;
     if (ArduinoOTA.getCommand() == U_FLASH)
       type = "sketch";
     else
       type = "filesystem";
     logprintln("[Arduino OTA] Start updating " + type); })
-      .onEnd([]()
-             {
+        .onEnd([]()
+               {
     logprintln("[Arduino OTA] Update End!! Reboot!!");
     delay(1000); })
-      .onProgress([](unsigned int progress, unsigned int total)
-                  {
+        .onProgress([](unsigned int progress, unsigned int total)
+                    {
     unsigned int nowPercent = (progress / (total / 100));
     if ((progress_percent != nowPercent) && (nowPercent%5 == 0)) {
       logprintln("[Arduino OTA] Progress: " + String(nowPercent) + "%");
       progress_percent = nowPercent;
     } })
-      .onError([](ota_error_t error)
-               {
+        .onError([](ota_error_t error)
+                 {
     logprintln("[Arduino OTA] Error: " + String(error));
     if (error == OTA_AUTH_ERROR) logprintln("Auth Failed");
     else if (error == OTA_BEGIN_ERROR) logprintln("Begin Failed");
     else if (error == OTA_CONNECT_ERROR) logprintln("Connect Failed");
     else if (error == OTA_RECEIVE_ERROR) logprintln("Receive Failed");
     else if (error == OTA_END_ERROR) logprintln("End Failed"); });
-  ArduinoOTA.begin();
-  logprintln("[Arduino OTA] Ready (Port: 3232)");
+    ArduinoOTA.begin();
+    logprintln("[Arduino OTA] Ready (Port: 3232)");
 
-  // WEB OTAの設定
-  webOtaServer.on("/", HTTP_GET, webOtaHandleRoot);
-  webOtaServer.on("/info", HTTP_GET, webOtaHandleInfo);
-  webOtaServer.on("/update", HTTP_POST, webOtaHandleUpdatePost, webOtaHandleUpdate);
-  webOtaServer.begin();
+    // WEB OTAの設定
+    webOtaServer.on("/", HTTP_GET, webOtaHandleRoot);
+    webOtaServer.on("/info", HTTP_GET, webOtaHandleInfo);
+    webOtaServer.on("/update", HTTP_POST, webOtaHandleUpdatePost, webOtaHandleUpdate);
+    webOtaServer.begin();
 
-  logprintln("[WEB OTA] Ready (Port: 8080)");
-  logprintln("[WEB OTA] Access: http://" + WiFi.localIP().toString() + ":8080");
+    logprintln("[WEB OTA] Ready (Port: 8080)");
+    logprintln("[WEB OTA] Access: http://" + WiFi.localIP().toString() + ":8080");
 }
 
 void ota_handle()
 {
-  ArduinoOTA.handle();
-  webOtaServer.handleClient();
+    ArduinoOTA.handle();
+    webOtaServer.handleClient();
 }
