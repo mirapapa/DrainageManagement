@@ -59,9 +59,9 @@ void spreadsheet_task(void *pvParameters)
         consecutiveFailures++;
 
         // 連続5回失敗したら再起動
-        if (consecutiveFailures >= 5)
+        if (consecutiveFailures >= 10)
         {
-          logprintln("⚠ 連続送信失敗5回 - 再起動します");
+          logprintln("⚠ 連続送信失敗10回 - 再起動します");
           vTaskDelay(pdMS_TO_TICKS(1000));
           ESP.restart();
         }
@@ -101,10 +101,10 @@ void spreadsheet_task(void *pvParameters)
         consecutiveFailures++;
         logprintln("✗ SpreadSheet送信失敗(code:" + String(resultCode) + ") 連続失敗:" + String(consecutiveFailures));
 
-        // 連続3回失敗したら再起動
-        if (consecutiveFailures >= 3)
+        // 連続5回失敗したら再起動
+        if (consecutiveFailures >= 5)
         {
-          logprintln("⚠ 連続送信失敗3回 - 再起動します");
+          logprintln("⚠ 連続送信失敗5回 - 再起動します");
           vTaskDelay(pdMS_TO_TICKS(1000));
           ESP.restart();
         }
@@ -140,7 +140,7 @@ void sendSpreadsheet(const String &data)
 
   HTTPClient http;
   http.begin(urlFinal.c_str());
-  http.setTimeout(8000); // タイムアウトを8秒に設定
+  http.setTimeout(15000); // タイムアウトを15秒に設定
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
   // 送信開始時刻を記録

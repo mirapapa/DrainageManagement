@@ -2,7 +2,7 @@
 #include "esp_task_wdt.h"
 
 // Task WDTのタイムアウト時間（秒）
-#define WDT_TIMEOUT 30
+#define WDT_TIMEOUT 45
 
 // 各タスクのWDT登録状態
 bool ultrasonicSensorWdtSubscribed = false;
@@ -11,7 +11,7 @@ bool logServerWdtSubscribed = false;
 
 void watchdog_setup()
 {
-    // Task WDTの初期化（30秒タイムアウト）
+    // Task WDTの初期化（45秒タイムアウト）
     esp_task_wdt_init(WDT_TIMEOUT, true); // true = パニック時にリセット
     logprintln("[WDT] Task Watchdog Timer initialized (timeout: " + String(WDT_TIMEOUT) + "s)");
 }

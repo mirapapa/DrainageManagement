@@ -20,6 +20,9 @@ void timeavailable(struct timeval *t)
     firstTimeNtpFlg = true;
   }
 
+  // 再起動ログのセットアップ（NTP時刻同期後に実行）
+  rebootLog_setup();
+
   // mdns
   mdnssetup();
 }

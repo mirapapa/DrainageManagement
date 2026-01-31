@@ -29,9 +29,6 @@ void setup()
   // wifiのセットアップ
   wifisetup();
 
-  // 再起動ログのセットアップ（NTP時刻同期後に実行）
-  rebootLog_setup();
-
   // 超音波センサのセットアップ
   ultrasonicSensor_setup();
 
@@ -57,5 +54,5 @@ void loop()
   // OTA処理（ArduinoOTA + WEB OTA）
   ota_handle();
 
-  delay(1000);
+  delay(100);
 }

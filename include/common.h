@@ -46,6 +46,7 @@ void logServersetup();
 uint nextnum(uint num);
 uint prevnum(uint num);
 String getHistoryData();
+String getSystemTimeStr();
 
 // ネットワーク関連
 void ntp_setup();
@@ -93,8 +94,8 @@ void sendSpreadsheet(const String &data);
 
 // --- 全ての外部変数の宣言 ---
 extern SENDSSDATATOSS sendHDatatoSS;
-extern SemaphoreHandle_t xHistorySemaphore; // 履歴データ(Web表示)用
-extern SemaphoreHandle_t xDataSemaphore;    // 送信データ(SS/Ambient)用
+// extern SemaphoreHandle_t xHistorySemaphore; // 履歴データ(Web表示)用
+extern SemaphoreHandle_t xDataSemaphore; // 送信データ(SS/Ambient)用
 extern bool firstTimeNtpFlg;
 extern RebootLog rebootLog; // 再起動ログ
 

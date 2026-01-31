@@ -1,7 +1,7 @@
 #include "common.h"
 
 // 現在時刻表示
-String getLocalTime()
+String getSystemTimeStr()
 {
   char str[256];
 

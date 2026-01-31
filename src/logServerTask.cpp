@@ -59,12 +59,11 @@ void logServer_task(void *pvParameters)
       logprintln("New Client.", false);
       while (logClient.connected())
       {
+        // WDTリセット（クライアント接続中）
+        watchdog_reset();
+
         while (xQueueReceive(queue1, buf, 0))
         {
-
-          // WDTリセット（クライアント接続中）
-          watchdog_reset();
-
           logClient.println(buf);
         }
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -81,16 +80,9 @@ void logServer_task(void *pvParameters)
 
 void logprintln(String log)
 {
-  struct tm timeinfo;
+  // 時刻取得
   String timeStr = "";
-
-  // 時刻が取得できた場合のみタイムスタンプを作成
-  if (firstTimeNtpFlg && getLocalTime(&timeinfo))
-  {
-    char buf[64];
-    strftime(buf, sizeof(buf), "%Y/%m/%d %H:%M:%S ", &timeinfo);
-    timeStr = String(buf);
-  }
+  timeStr = getSystemTimeStr();
 
   String fullLog = timeStr + log;
 
@@ -116,25 +108,18 @@ void logprintln(String log, bool historyFlg)
 
   if (historyFlg)
   {
+    // 時刻取得
+    String timeStr = "";
+    timeStr = getSystemTimeStr();
+
     takeSemaphore(xHistorySemaphore);
 
-    struct tm timeinfo;
-    String timeStr = "";
-    if (getLocalTime(&timeinfo))
-    {
-      char buf[64];
-      strftime(buf, sizeof(buf), "%Y/%m/%d %H:%M:%S ", &timeinfo);
-      timeStr = String(buf);
-    }
-
     historyData.latest_num = nextnum(historyData.latest_num);
-
     // バッファが満杯の場合、古いデータを削除
     if (historyData.latest_num == historyData.oldest_num)
     {
       historyData.oldest_num = nextnum(historyData.oldest_num);
     }
-
     historyData.data[historyData.latest_num] = timeStr + log;
 
     giveSemaphore(xHistorySemaphore);
