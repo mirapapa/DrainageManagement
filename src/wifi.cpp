@@ -9,7 +9,7 @@ const IPAddress subnet WIFI_SUBNET;
 const IPAddress dns1 WIFI_DNS;
 uint16_t wifistatus = 0;
 unsigned long previousMillis = 0;
-unsigned long interval = 30000;
+unsigned long interval = 60000;
 unsigned long lastConnectedTime = 0;
 const unsigned long MAX_DISCONNECTED_TIME = 300000; // 5分間切断が続いたら再起動
 
@@ -24,6 +24,10 @@ int wifisetup()
   }
 
   WiFi.begin(ssid, pass);
+
+  // WiFi省電力モードを無効化（RSSI改善のため）
+  WiFi.setSleep(false);
+  logprintln("WiFi省電力モード: 無効");
 
   // 接続完了待機（最大10秒）
   int retry = 0;

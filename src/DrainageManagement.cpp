@@ -12,8 +12,8 @@ void setup()
 
   logprintln("");
   logprintln("***********************************");
-  logprintln("**   排液管理システム            **");
-  logprintln("**   (ver1.12)                   **");
+  logprintln("** " SYSTEM_NAME "            **");
+  logprintln("**   (ver" VERSION ")                  **");
   logprintln("***********************************");
 #ifdef CONFIG_APP_ROLLBACK_ENABLE
   logprintln("CONFIG_APP_ROLLBACK_ENABLE");
@@ -54,5 +54,5 @@ void loop()
   // OTA処理（ArduinoOTA + WEB OTA）
   ota_handle();
 
-  delay(100);
+  delay(1000); // 100ms → 1000ms に変更（WiFi安定化のため）
 }

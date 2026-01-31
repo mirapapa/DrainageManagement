@@ -30,7 +30,7 @@ void spreadsheet_task(void *pvParameters)
   giveSemaphore(xDataSemaphore);
 
   unsigned long lastAttemptTime = 0;
-  const unsigned long SEND_TIMEOUT = 15000; // 15秒でタイムアウト
+  const unsigned long SEND_TIMEOUT = 25000; // 25秒でタイムアウト
   int consecutiveFailures = 0;
 
   while (1)
@@ -48,20 +48,25 @@ void spreadsheet_task(void *pvParameters)
 
     if (shouldSend)
     {
+      logprintln("[SPREADSHEET] 送信開始準備");
+
       // WiFi接続確認
       if (WiFi.status() != WL_CONNECTED)
       {
-        logprintln("⚠ WiFi切断中のため送信スキップ");
+        logprintln("⚠ [SPREADSHEET] WiFi切断中のため送信スキップ");
         takeSemaphore(xDataSemaphore);
         sendHDatatoSS.send_flg = 0;
         sendHDatatoSS.last_http_code = -1;
         giveSemaphore(xDataSemaphore);
         consecutiveFailures++;
 
+        logprintln("[SPREADSHEET] 連続失敗カウント: " + String(consecutiveFailures) + "/5");
+
         // 連続5回失敗したら再起動
-        if (consecutiveFailures >= 10)
+        if (consecutiveFailures >= 5)
         {
-          logprintln("⚠ 連続送信失敗10回 - 再起動します");
+          logprintln("⚠ [SPREADSHEET] 連続送信失敗5回 - 再起動します");
+          addRebootRecord(ESP_RST_SW, "WiFi disconnect 5x");
           vTaskDelay(pdMS_TO_TICKS(1000));
           ESP.restart();
         }
@@ -70,15 +75,19 @@ void spreadsheet_task(void *pvParameters)
 
       // タイムアウト監視開始
       lastAttemptTime = millis();
+      logprintln("[SPREADSHEET] HTTP送信開始 (timeout: 25s)");
 
       // HTTP送信（セマフォ外で実行）
       sendSpreadsheet(dataCopy);
 
       // 送信が異常に長引いた場合の検出
       unsigned long sendDuration = millis() - lastAttemptTime;
+      logprintln("[SPREADSHEET] HTTP送信完了 (所要時間: " + String(sendDuration) + "ms)");
+
       if (sendDuration > SEND_TIMEOUT)
       {
-        logprintln("⚠ HTTP送信タイムアウト検出(" + String(sendDuration) + "ms) - 再起動します");
+        logprintln("⚠ [SPREADSHEET] HTTP送信タイムアウト検出(" + String(sendDuration) + "ms) - 再起動します");
+        addRebootRecord(ESP_RST_SW, "HTTP timeout");
         vTaskDelay(pdMS_TO_TICKS(1000));
         ESP.restart();
       }
@@ -94,17 +103,18 @@ void spreadsheet_task(void *pvParameters)
       if (resultCode == 200)
       {
         consecutiveFailures = 0;
-        logprintln("✓ SpreadSheet送信成功");
+        logprintln("✓ [SPREADSHEET] 送信成功 (連続失敗カウントリセット)");
       }
       else
       {
         consecutiveFailures++;
-        logprintln("✗ SpreadSheet送信失敗(code:" + String(resultCode) + ") 連続失敗:" + String(consecutiveFailures));
+        logprintln("✗ [SPREADSHEET] 送信失敗(code:" + String(resultCode) + ") 連続失敗:" + String(consecutiveFailures) + "/3");
 
-        // 連続5回失敗したら再起動
-        if (consecutiveFailures >= 5)
+        // 連続3回失敗したら再起動
+        if (consecutiveFailures >= 3)
         {
-          logprintln("⚠ 連続送信失敗5回 - 再起動します");
+          logprintln("⚠ [SPREADSHEET] 連続送信失敗3回 - 再起動します");
+          addRebootRecord(ESP_RST_SW, "HTTP error 3x");
           vTaskDelay(pdMS_TO_TICKS(1000));
           ESP.restart();
         }
@@ -115,7 +125,7 @@ void spreadsheet_task(void *pvParameters)
     UBaseType_t stackRemaining = uxTaskGetStackHighWaterMark(NULL);
     if (stackRemaining < 512)
     {
-      logprintln("⚠ SPREADSHEET_TASK: Low stack! " + String(stackRemaining) + " bytes");
+      logprintln("⚠ [SPREADSHEET] Low stack! " + String(stackRemaining) + " bytes");
     }
   }
 
@@ -126,25 +136,44 @@ void sendSpreadsheet(const String &data)
 {
   // ローカル変数に変更（メモリ断片化対策）
   String urlFinal = String(GAS_URL) + data;
-  logprintln("○SpreadSheet 送信開始(" + String(urlFinal.length()) + "bytes)");
+  logprintln("○[SPREADSHEET] 送信開始(" + String(urlFinal.length()) + "bytes)");
+  logprintln("  URL: " + String(GAS_URL));
+  logprintln("  Data: " + data);
 
   // WiFi接続状態を再確認
   if (WiFi.status() != WL_CONNECTED)
   {
-    logprintln("●SpreadSheet 送信中止: WiFi切断検出");
+    logprintln("●[SPREADSHEET] 送信中止: WiFi切断検出");
     takeSemaphore(xDataSemaphore);
     sendHDatatoSS.last_http_code = -2;
     giveSemaphore(xDataSemaphore);
     return;
   }
 
+  // RSSI（電波強度）を確認
+  int rssi = WiFi.RSSI();
+  logprintln("  WiFi RSSI: " + String(rssi) + " dBm");
+  if (rssi < -85)
+  {
+    logprintln("⚠ [SPREADSHEET] WiFi電波が弱い！");
+  }
+
   HTTPClient http;
+
+  logprintln("  [1/4] HTTPClient.begin()");
   http.begin(urlFinal.c_str());
-  http.setTimeout(15000); // タイムアウトを15秒に設定
+
+  logprintln("  [2/4] setTimeout(20000)");
+  http.setTimeout(20000); // タイムアウトを20秒に設定
+
+  logprintln("  [3/4] setFollowRedirects()");
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
   // 送信開始時刻を記録
   unsigned long startTime = millis();
+
+  logprintln("  [4/4] GET送信開始...");
+  watchdog_reset(); // HTTP送信前にWDTリセット
 
   int httpCode = http.GET();
 
@@ -157,7 +186,7 @@ void sendSpreadsheet(const String &data)
 
   if (httpCode > 0)
   {
-    log = "●SpreadSheet 受信完了(" + String(duration) + "ms) [HTTP] code: " + String(httpCode);
+    log = "●[SPREADSHEET] 受信完了(" + String(duration) + "ms) [HTTP] code: " + String(httpCode);
     if (httpCode == HTTP_CODE_OK)
     {
       String payload = http.getString();
@@ -168,14 +197,25 @@ void sendSpreadsheet(const String &data)
       }
       log += " Payload: " + payload;
     }
+    else if (httpCode >= 300 && httpCode < 400)
+    {
+      log += " (リダイレクト)";
+    }
+    else if (httpCode >= 400)
+    {
+      log += " (エラー)";
+    }
   }
   else
   {
-    log = "●SpreadSheet 受信失敗(" + String(duration) + "ms) error: " + http.errorToString(httpCode);
+    log = "●[SPREADSHEET] 受信失敗(" + String(duration) + "ms) error: " + http.errorToString(httpCode);
+    log += " (error code: " + String(httpCode) + ")";
   }
 
   logprintln(log);
   http.end();
+
+  logprintln("  HTTPClient.end() 完了");
 
   // 明示的にメモリ解放の時間を与える
   vTaskDelay(pdMS_TO_TICKS(100));

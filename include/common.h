@@ -11,6 +11,9 @@
 #include <LiquidCrystal_I2C.h>
 #include <ESPmDNS.h>
 
+#define SYSTEM_NAME "排液管理システム"
+#define VERSION "1.1.3"
+
 // --- 構造体の定義 ---
 typedef struct
 {
