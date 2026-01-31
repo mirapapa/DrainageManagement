@@ -129,7 +129,7 @@ void verifyFirmware()
 void ota_setup()
 {
     // ArduinoOTA (従来のOTA)の設定
-    ArduinoOTA.setPassword("drainage");
+    ArduinoOTA.setPassword(WIFI_HOST);
     ArduinoOTA
         .onStart([]()
                  {

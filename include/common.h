@@ -12,7 +12,7 @@
 #include <ESPmDNS.h>
 
 #define SYSTEM_NAME "排液管理システム"
-#define SYSTEM_VERSION "1.1.3"
+#define SYSTEM_VERSION "1.1.4"
 
 // --- 構造体の定義 ---
 typedef struct

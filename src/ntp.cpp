@@ -24,5 +24,5 @@ void timeavailable(struct timeval *t)
   rebootLog_setup();
 
   // mdns
-  mdnssetup();
+  // mdnssetup();
 }
