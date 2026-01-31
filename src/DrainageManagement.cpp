@@ -13,7 +13,7 @@ void setup()
   logprintln("");
   logprintln("***********************************");
   logprintln("** " SYSTEM_NAME "            **");
-  logprintln("**   (ver" VERSION ")                  **");
+  logprintln("**   (ver" SYSTEM_VERSION ")                  **");
   logprintln("***********************************");
 #ifdef CONFIG_APP_ROLLBACK_ENABLE
   logprintln("CONFIG_APP_ROLLBACK_ENABLE");

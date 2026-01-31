@@ -134,7 +134,7 @@ const char otaUploadHtml[] PROGMEM = R"rawliteral(
 <body>
     <div class='container'>
         <h1>🔄 OTA ファームウェア更新</h1>
-        <div class='version'>{{SYS_NAME}} ver:{{VER}} {{BUILD_DATE}}</div>
+        <div class='version'>{{SYS_NAME}} ver:{{SYS_VER}} {{BUILD_DATE}}</div>
         
         <div class='info-box'>
             <p>📱 <strong>IP:</strong> <span id='ipAddr'>読み込み中...</span></p>

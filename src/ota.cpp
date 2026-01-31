@@ -13,7 +13,7 @@ void webOtaHandleRoot()
 
     // キーワードを定義名に置換
     html.replace("{{SYS_NAME}}", SYSTEM_NAME);
-    html.replace("{{VER}}", VERSION);
+    html.replace("{{SYS_VER}}", SYSTEM_VERSION);
     html.replace("{{BUILD_DATE}}", __DATE__);
 
     // 置換後のHTMLを送信
