@@ -118,51 +118,6 @@ void ultrasonicSensor_Task(void *pvParameters)
       lcd.print("!"); // 切断時はビックリマーク
     }
 
-    // --- 2段目: 状態表示と点滅アニメーション ---
-    lcd.setCursor(0, 1);
-
-    takeSemaphore(xDataSemaphore);
-    bool sending = sendHDatatoSS.send_flg;
-    giveSemaphore(xDataSemaphore);
-
-    if (sending)
-    {
-      // 送信中は「Sending...」とアニメーションを表示
-      lcd.print("SENDING ");
-      lcd.print(loader[loaderIdx]);
-      loaderIdx = (loaderIdx + 1) % 4;
-      lcd.print("      "); // 残りを空白で掃除
-    }
-    else
-    {
-      // 待機中：次回送信までの秒数と、前回の結果を表示
-      takeSemaphore(xDataSemaphore);
-      int lastCode = sendHDatatoSS.last_http_code;
-      giveSemaphore(xDataSemaphore);
-
-      int next = 60 - (millis() - lastSendTime) / 1000;
-      if (next < 0)
-        next = 0;
-
-      char line2[17];
-      if (lastCode == 200)
-      {
-        // 成功時は「OK」と秒数を表示
-        sprintf(line2, "OK!      WAIT%2ds", next);
-      }
-      else if (lastCode == 0)
-      {
-        // 初回など、まだ送信していない時
-        sprintf(line2, "READY    WAIT%2ds", next);
-      }
-      else
-      {
-        // 失敗時はエラーコードを表示
-        sprintf(line2, "ERR:%d  WAIT%2ds", lastCode, next);
-      }
-      lcd.print(line2);
-    }
-
     // --- 60秒に1回、中央値を計算して送信 ---
     if (millis() - lastSendTime > 60000)
     {
@@ -176,12 +131,6 @@ void ultrasonicSensor_Task(void *pvParameters)
         medianDistance = distanceSamples[sampleCount / 2];
       }
 
-      takeSemaphore(xDataSemaphore);
-      // 中央値を送信データにセット
-      sendHDatatoSS.data = "?d4=" + String(medianDistance);
-      sendHDatatoSS.send_flg = 1;
-      giveSemaphore(xDataSemaphore);
-
       logprintln("○SS送信(中央値): d4=" + String(medianDistance) + " (" + String(sampleCount) + " samples)");
 
       // 変数とカウントをリセット
@@ -191,20 +140,14 @@ void ultrasonicSensor_Task(void *pvParameters)
       // MQTT送信
       if (mqttClient.connected())
       {
-        String json = "";
-        json += "{";
-        json += "\"write\": true,";
-        json += "\"data\":" + String(medianDistance);
-        json += "}";
-
         // 送信自体もノンブロッキングで行われる
-        if (mqttClient.publish(MQTT_TOPIC, json.c_str()))
+        if (mqttClient.publish(MQTT_TOPIC, String(medianDistance).c_str()))
         {
-          logprintln("[MQTT] 送信成功: " + json);
+          logprintln("[MQTT] 送信成功: " + String(medianDistance));
         }
         else
         {
-          logprintln("[MQTT] 送信失敗: " + json);
+          logprintln("[MQTT] 送信失敗: ");
         }
       }
     }

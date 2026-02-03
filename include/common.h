@@ -13,15 +13,7 @@
 #include <PubSubClient.h>
 
 #define SYSTEM_NAME "排液管理システム"
-#define SYSTEM_VERSION "1.1.4"
-
-// --- 構造体の定義 ---
-typedef struct
-{
-    bool send_flg;
-    String data;
-    int last_http_code;
-} SENDSSDATATOSS;
+#define SYSTEM_VERSION "1.2.0"
 
 // 再起動記録の構造体
 typedef struct
@@ -58,12 +50,12 @@ int wifisetup();
 void wificheck();
 void mdnssetup();
 void timeavailable(struct timeval *t);
-bool isWiFiReallyConnected(); // 新規追加
+bool isWiFiReallyConnected();
 
 // OTA関連
 void ota_setup();
 void verifyFirmware();
-void ota_handle(); // 新規追加
+void ota_handle();
 
 // Watchdog関連
 void watchdog_setup();
@@ -91,20 +83,12 @@ void ultrasonicSensor_setup();
 int measureDistance();
 void ultrasonicSensor_Task(void *pvParameters);
 
-// スプレッドシート関連
-void spreadSheetsetup();
-void spreadsheet_task(void *pvParameters);
-void sendSpreadsheet(const String &data);
-
 // MQTT関連
-void mqttWorkerTask(void *pvParameters);
+void mqttTask(void *pvParameters);
 extern PubSubClient mqttClient;
 
 // --- 全ての外部変数の宣言 ---
-extern SENDSSDATATOSS sendHDatatoSS;
-// extern SemaphoreHandle_t xHistorySemaphore; // 履歴データ(Web表示)用
-extern SemaphoreHandle_t xDataSemaphore; // 送信データ(SS/Ambient)用
 extern bool firstTimeNtpFlg;
-extern RebootLog rebootLog; // 再起動ログ
+extern RebootLog rebootLog;
 
 #endif // COMMON_H

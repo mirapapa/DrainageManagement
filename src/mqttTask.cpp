@@ -3,8 +3,10 @@
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-void mqttWorkerTask(void *pvParameters)
+void mqttTask(void *pvParameters)
 {
+    logprintln("mqtt_task START!!");
+
     mqttClient.setServer("mqtt.beebotte.com", 1883);
 
     while (true)
