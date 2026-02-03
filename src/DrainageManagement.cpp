@@ -1,6 +1,6 @@
 #include "common.h"
 
-TaskHandle_t thp[3];
+TaskHandle_t thp[4];
 SENDSSDATATOSS sendHDatatoSS;
 
 void setup()
@@ -39,7 +39,7 @@ void setup()
   xTaskCreatePinnedToCore(ultrasonicSensor_Task, "ULTRASONICSENSOR_TASK", 8192, NULL, 3, &thp[0], APP_CPU_NUM);
   xTaskCreatePinnedToCore(spreadsheet_task, "SPREADSHEET_Task", 8192, NULL, 2, &thp[1], APP_CPU_NUM);
   xTaskCreatePinnedToCore(logServer_task, "LOGSERVER_TASK", 8192, NULL, 1, &thp[2], APP_CPU_NUM);
-
+  xTaskCreatePinnedToCore(mqttWorkerTask, "MQTT_Task", 4096, NULL, 1, &thp[3], APP_CPU_NUM);
   // otaのセットアップ
   ota_setup();
 

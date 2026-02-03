@@ -187,6 +187,26 @@ void ultrasonicSensor_Task(void *pvParameters)
       // 変数とカウントをリセット
       lastSendTime = millis();
       sampleCount = 0;
+
+      // MQTT送信
+      if (mqttClient.connected())
+      {
+        String json = "";
+        json += "{";
+        json += "\"write\": true,";
+        json += "\"data\":" + String(medianDistance);
+        json += "}";
+
+        // 送信自体もノンブロッキングで行われる
+        if (mqttClient.publish(MQTT_TOPIC, json.c_str()))
+        {
+          logprintln("[MQTT] 送信成功: " + json);
+        }
+        else
+        {
+          logprintln("[MQTT] 送信失敗: " + json);
+        }
+      }
     }
 
     vTaskDelay(pdMS_TO_TICKS(1000));

@@ -10,6 +10,7 @@
 #include "esp_ota_ops.h"
 #include <LiquidCrystal_I2C.h>
 #include <ESPmDNS.h>
+#include <PubSubClient.h>
 
 #define SYSTEM_NAME "排液管理システム"
 #define SYSTEM_VERSION "1.1.4"
@@ -94,6 +95,10 @@ void ultrasonicSensor_Task(void *pvParameters);
 void spreadSheetsetup();
 void spreadsheet_task(void *pvParameters);
 void sendSpreadsheet(const String &data);
+
+// MQTT関連
+void mqttWorkerTask(void *pvParameters);
+extern PubSubClient mqttClient;
 
 // --- 全ての外部変数の宣言 ---
 extern SENDSSDATATOSS sendHDatatoSS;

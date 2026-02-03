@@ -18,11 +18,8 @@ void timeavailable(struct timeval *t)
   {
     logprintln("<<ＮＴＰ システム起動後初回時刻合わせ完了>>", 1);
     firstTimeNtpFlg = true;
+
+    // 再起動ログのセットアップ
+    rebootLog_setup();
   }
-
-  // 再起動ログのセットアップ（NTP時刻同期後に実行）
-  rebootLog_setup();
-
-  // mdns
-  // mdnssetup();
 }
